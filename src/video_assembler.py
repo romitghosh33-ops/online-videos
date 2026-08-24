@@ -1,0 +1,143 @@
+"""
+Video assembly.
+
+Combines, per scene:
+  - a visual (an image you supply in an assets folder, named
+    scene-01.png / scene-02.png / ... matching the script's scene numbers;
+    falls back to a plain color card with the scene's "visual" description
+    as on-screen text if no image is provided -- good enough to preview
+    pacing before real art/animation exists)
+  - the scene's synthesized voiceover clip (from tts_pipeline), which sets
+    that scene's on-screen duration
+  - an optional looping background music track, mixed under the narration
+    at reduced volume
+
+...into a single MP4, matching the scene order in the script JSON.
+
+This is a *rough-cut* assembler for previewing pacing and reviewing scripts
+end-to-end, not a replacement for a real animation pipeline. Swap in real
+animated clips per scene by pointing --assets-dir at rendered video files
+named scene-01.mp4, scene-02.mp4, etc. (image and video assets can be
+mixed).
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Optional
+
+from moviepy.editor import (
+    AudioFileClip,
+    ColorClip,
+    CompositeAudioClip,
+    CompositeVideoClip,
+    ImageClip,
+    TextClip,
+    VideoFileClip,
+    concatenate_videoclips,
+)
+
+from src.config import config
+
+VIDEO_SIZE = (1280, 720)
+FALLBACK_COLORS = [
+    (255, 214, 165),  # warm peach
+    (198, 232, 173),  # soft green
+    (167, 216, 245),  # sky blue
+    (255, 236, 179),  # pale yellow
+]
+
+
+def _find_scene_asset(assets_dir: Optional[Path], scene_number: int):
+    if not assets_dir:
+        return None
+    for ext in (".mp4", ".mov", ".png", ".jpg", ".jpeg"):
+        candidate = assets_dir / f"scene-{scene_number:02d}{ext}"
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _build_scene_clip(scene: dict, duration: float, assets_dir: Optional[Path]):
+    asset_path = _find_scene_asset(assets_dir, scene["scene_number"])
+
+    if asset_path and asset_path.suffix in (".mp4", ".mov"):
+        clip = VideoFileClip(str(asset_path)).subclip(0, min(duration, VideoFileClip(str(asset_path)).duration))
+        clip = clip.resize(VIDEO_SIZE).set_duration(duration)
+        return clip
+
+    if asset_path and asset_path.suffix in (".png", ".jpg", ".jpeg"):
+        return ImageClip(str(asset_path)).resize(VIDEO_SIZE).set_duration(duration)
+
+    # Fallback: plain color card + the visual description as text, so you
+    # can review pacing/timing before real art exists.
+    color = FALLBACK_COLORS[scene["scene_number"] % len(FALLBACK_COLORS)]
+    bg = ColorClip(size=VIDEO_SIZE, color=color).set_duration(duration)
+    caption = TextClip(
+        scene["visual"],
+        fontsize=36,
+        color="black",
+        size=(VIDEO_SIZE[0] - 160, None),
+        method="caption",
+    ).set_duration(duration).set_position("center")
+    return CompositeVideoClip([bg, caption])
+
+
+def assemble_video(
+    script_path: str,
+    audio_dir: str,
+    assets_dir: Optional[str] = None,
+    music_path: Optional[str] = None,
+    out_path: Optional[str] = None,
+) -> Path:
+    script = json.loads(Path(script_path).read_text())
+    audio_dir_p = Path(audio_dir)
+    assets_dir_p = Path(assets_dir) if assets_dir else None
+
+    scene_clips = []
+    audio_clips = []
+    for scene in script["scenes"]:
+        scene_audio_path = audio_dir_p / f"scene-{scene['scene_number']:02d}.wav"
+        if scene_audio_path.exists():
+            audio_clip = AudioFileClip(str(scene_audio_path))
+            duration = audio_clip.duration
+        else:
+            # Song/placeholder scenes with no synthesized VO: fall back to
+            # the script's planned duration.
+            audio_clip = None
+            duration = scene.get("duration_seconds", 5)
+
+        visual_clip = _build_scene_clip(scene, duration, assets_dir_p)
+        if audio_clip is not None:
+            visual_clip = visual_clip.set_audio(audio_clip)
+            audio_clips.append(audio_clip)
+        scene_clips.append(visual_clip)
+
+    final = concatenate_videoclips(scene_clips, method="compose")
+
+    if music_path:
+        music = AudioFileClip(music_path).volumex(0.15)
+        loops_needed = int(final.duration // music.duration) + 1
+        music = concatenate_audioclips_safe(music, loops_needed).subclip(0, final.duration)
+        final_audio = CompositeAudioClip([final.audio, music]) if final.audio else music
+        final = final.set_audio(final_audio)
+
+    out_dir = Path(config.OUTPUT_DIR) / "video"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path_p = Path(out_path) if out_path else out_dir / f"{_slug(script['title'])}.mp4"
+
+    final.write_videofile(str(out_path_p), fps=24, codec="libx264", audio_codec="aac")
+    print(f"Assembled video: {out_path_p}")
+    return out_path_p
+
+
+def concatenate_audioclips_safe(clip, loops_needed: int):
+    from moviepy.editor import concatenate_audioclips
+
+    return concatenate_audioclips([clip] * max(loops_needed, 1))
+
+
+def _slug(title: str) -> str:
+    slug = title.lower().replace(" ", "-").replace("'", "")
+    return "".join(c for c in slug if c.isalnum() or c == "-")

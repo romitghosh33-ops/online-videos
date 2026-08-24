@@ -5,7 +5,8 @@ CLI entry point for the Bounce video production toolkit.
 Usage:
     python main.py generate-script --topic "counting to ten" [--age 2-5] [--duration 90] [--character Bounce]
     python main.py check-safety path/to/script.json
-    python main.py generate-audio path/to/script.json
+    python main.py generate-audio path/to/script.json [--sing] [--voice en-us+f3]
+    python main.py generate-music --out path/to/theme.wav [--bars 4] [--tempo 120]
     python main.py assemble-video path/to/script.json --audio-dir output/audio/<slug> [--assets-dir path] [--music path]
     python main.py export-calendar
 
@@ -19,6 +20,7 @@ from pathlib import Path
 
 from src.calendar_export import generate_calendar_workbook
 from src.content_safety import check_script
+from src.music_generator import generate_bell_melody
 from src.script_generator import generate_script, save_script
 from src.tts_pipeline import generate_voiceover
 from src.video_assembler import assemble_video
@@ -42,7 +44,11 @@ def cmd_check_safety(args):
 
 
 def cmd_generate_audio(args):
-    generate_voiceover(args.script_path, out_dir=args.out_dir)
+    generate_voiceover(args.script_path, out_dir=args.out_dir, voice=args.voice, sing=args.sing)
+
+
+def cmd_generate_music(args):
+    generate_bell_melody(args.out, bars=args.bars, tempo_bpm=args.tempo)
 
 
 def cmd_assemble_video(args):
@@ -78,7 +84,15 @@ def main():
     p_audio = sub.add_parser("generate-audio", help="Synthesize per-scene voiceover + full narration track")
     p_audio.add_argument("script_path")
     p_audio.add_argument("--out-dir", default=None)
+    p_audio.add_argument("--voice", default=None, help="espeak voice, e.g. en-us+f3 for female-sounding (offline backend only)")
+    p_audio.add_argument("--sing", action="store_true", help="cycle pitch per line to approximate a sung melody (offline backend only, best-effort)")
     p_audio.set_defaults(func=cmd_generate_audio)
+
+    p_music = sub.add_parser("generate-music", help="Synthesize an original background music loop (no samples, no copied melodies)")
+    p_music.add_argument("--out", required=True)
+    p_music.add_argument("--bars", type=int, default=4)
+    p_music.add_argument("--tempo", type=int, default=120)
+    p_music.set_defaults(func=cmd_generate_music)
 
     p_video = sub.add_parser("assemble-video", help="Assemble the rough-cut video from script + audio (+ optional visuals/music)")
     p_video.add_argument("script_path")

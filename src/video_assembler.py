@@ -2,11 +2,12 @@
 Video assembly.
 
 Combines, per scene:
-  - a visual (an image you supply in an assets folder, named
-    scene-01.png / scene-02.png / ... matching the script's scene numbers;
-    falls back to a plain color card with the scene's "visual" description
-    as on-screen text if no image is provided -- good enough to preview
-    pacing before real art/animation exists)
+  - a visual: an image/video you supply in an assets folder (named
+    scene-01.png / scene-02.png / ... matching the script's scene numbers)
+    takes priority; otherwise the procedural cartoon_renderer draws the
+    Bounce character animated for that scene; if even that fails, falls
+    back to a plain color card with the scene's "visual" description as
+    on-screen text.
   - the scene's synthesized voiceover clip (from tts_pipeline), which sets
     that scene's on-screen duration
   - an optional looping background music track, mixed under the narration
@@ -42,6 +43,7 @@ from moviepy import (
     concatenate_videoclips,
 )
 
+from src.cartoon_renderer import make_cartoon_clip
 from src.config import config
 
 VIDEO_SIZE = (1280, 720)
@@ -74,8 +76,14 @@ def _build_scene_clip(scene: dict, duration: float, assets_dir: Optional[Path]):
     if asset_path and asset_path.suffix in (".png", ".jpg", ".jpeg"):
         return ImageClip(str(asset_path)).resized(VIDEO_SIZE).with_duration(duration)
 
-    # Fallback: plain color card + the visual description as text, so you
-    # can review pacing/timing before real art exists.
+    if not asset_path:
+        try:
+            return make_cartoon_clip(scene, duration, scene["scene_number"])
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            print(f"cartoon_renderer failed for scene {scene['scene_number']} ({exc}); using caption card.")
+
+    # Last-resort fallback: plain color card + the visual description as
+    # text, so you can still review pacing/timing.
     color = FALLBACK_COLORS[scene["scene_number"] % len(FALLBACK_COLORS)]
     bg = ColorClip(size=VIDEO_SIZE, color=color).with_duration(duration)
     caption = (

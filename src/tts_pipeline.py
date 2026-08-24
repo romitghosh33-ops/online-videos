@@ -7,8 +7,9 @@ narration track with a short pause between scenes.
 
 Backends:
   - "elevenlabs": cloud TTS, higher quality, needs ELEVENLABS_API_KEY.
-  - "offline": pyttsx3 (local, no network/API key, lower quality). Good
-    default so the pipeline is runnable out of the box.
+  - "offline": shells out to the system `espeak` (or `espeak-ng`) binary --
+    local, no network/API key, lower quality. Good default so the pipeline
+    is runnable out of the box.
 
 Requires ffmpeg on PATH for pydub to read/write mp3 (falls back to wav
 otherwise -- see README).
@@ -17,6 +18,8 @@ otherwise -- see README).
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -45,12 +48,18 @@ def _synthesize_elevenlabs(text: str, out_path: Path) -> None:
 
 
 def _synthesize_offline(text: str, out_path: Path) -> None:
-    import pyttsx3
-
-    engine = pyttsx3.init()
-    engine.setProperty("rate", 150)  # slower, clearer for kids' content
-    engine.save_to_file(text, str(out_path))
-    engine.runAndWait()
+    binary = shutil.which("espeak") or shutil.which("espeak-ng")
+    if not binary:
+        raise RuntimeError(
+            "TTS_BACKEND=offline requires 'espeak' or 'espeak-ng' to be "
+            "installed and on PATH (e.g. `apt-get install espeak` on "
+            "Debian/Ubuntu, `brew install espeak` on macOS)."
+        )
+    subprocess.run(
+        [binary, "-s", "150", "-w", str(out_path), text],  # -s 150 = slower, clearer for kids' content
+        check=True,
+        capture_output=True,
+    )
 
 
 def synthesize_scene(text: str, out_path: Path, backend: Optional[str] = None) -> Path:

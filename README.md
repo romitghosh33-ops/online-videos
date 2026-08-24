@@ -26,13 +26,16 @@ cp .env.example .env   # fill in API keys if you want cloud script-gen / TTS
 ```
 
 `video_assembler.py` needs **ffmpeg** on your PATH (used by `moviepy`/`pydub`
-to encode/decode media). `tts_pipeline.py`'s offline backend needs a system
-TTS engine available to `pyttsx3` (e.g. `espeak` on Linux, built-in on
-macOS/Windows).
+to encode/decode media: `apt-get install ffmpeg` on Debian/Ubuntu, `brew
+install ffmpeg` on macOS). `tts_pipeline.py`'s offline backend shells out to
+**`espeak`** (`apt-get install espeak` / `brew install espeak`) — no API key
+needed, lower quality than `elevenlabs`.
 
-Everything works with **no API keys at all** in offline/template mode — useful
-for testing the pipeline end-to-end before paying for cloud script
-generation or TTS.
+Everything works with **no API keys at all** in offline/template mode —
+verified end-to-end in this repo: `generate-script` (offline template) →
+`generate-audio` (espeak) → `assemble-video` (moviepy 2.x + ffmpeg) all run
+and produce real output before you pay for any cloud script generation or
+TTS.
 
 ## Usage
 

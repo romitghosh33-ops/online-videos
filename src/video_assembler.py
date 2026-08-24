@@ -19,6 +19,9 @@ end-to-end, not a replacement for a real animation pipeline. Swap in real
 animated clips per scene by pointing --assets-dir at rendered video files
 named scene-01.mp4, scene-02.mp4, etc. (image and video assets can be
 mixed).
+
+Built against moviepy 2.x (`from moviepy import ...`, `with_*` / `resized` /
+`subclipped` method names -- not the old 1.x `moviepy.editor` API).
 """
 
 from __future__ import annotations
@@ -27,7 +30,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from moviepy.editor import (
+from moviepy import (
     AudioFileClip,
     ColorClip,
     CompositeAudioClip,
@@ -35,6 +38,7 @@ from moviepy.editor import (
     ImageClip,
     TextClip,
     VideoFileClip,
+    concatenate_audioclips,
     concatenate_videoclips,
 )
 
@@ -63,24 +67,28 @@ def _build_scene_clip(scene: dict, duration: float, assets_dir: Optional[Path]):
     asset_path = _find_scene_asset(assets_dir, scene["scene_number"])
 
     if asset_path and asset_path.suffix in (".mp4", ".mov"):
-        clip = VideoFileClip(str(asset_path)).subclip(0, min(duration, VideoFileClip(str(asset_path)).duration))
-        clip = clip.resize(VIDEO_SIZE).set_duration(duration)
-        return clip
+        raw = VideoFileClip(str(asset_path))
+        clip = raw.subclipped(0, min(duration, raw.duration))
+        return clip.resized(VIDEO_SIZE).with_duration(duration)
 
     if asset_path and asset_path.suffix in (".png", ".jpg", ".jpeg"):
-        return ImageClip(str(asset_path)).resize(VIDEO_SIZE).set_duration(duration)
+        return ImageClip(str(asset_path)).resized(VIDEO_SIZE).with_duration(duration)
 
     # Fallback: plain color card + the visual description as text, so you
     # can review pacing/timing before real art exists.
     color = FALLBACK_COLORS[scene["scene_number"] % len(FALLBACK_COLORS)]
-    bg = ColorClip(size=VIDEO_SIZE, color=color).set_duration(duration)
-    caption = TextClip(
-        scene["visual"],
-        fontsize=36,
-        color="black",
-        size=(VIDEO_SIZE[0] - 160, None),
-        method="caption",
-    ).set_duration(duration).set_position("center")
+    bg = ColorClip(size=VIDEO_SIZE, color=color).with_duration(duration)
+    caption = (
+        TextClip(
+            text=scene["visual"],
+            font_size=36,
+            color="black",
+            size=(VIDEO_SIZE[0] - 160, None),
+            method="caption",
+        )
+        .with_duration(duration)
+        .with_position("center")
+    )
     return CompositeVideoClip([bg, caption])
 
 
@@ -96,7 +104,6 @@ def assemble_video(
     assets_dir_p = Path(assets_dir) if assets_dir else None
 
     scene_clips = []
-    audio_clips = []
     for scene in script["scenes"]:
         scene_audio_path = audio_dir_p / f"scene-{scene['scene_number']:02d}.wav"
         if scene_audio_path.exists():
@@ -110,32 +117,26 @@ def assemble_video(
 
         visual_clip = _build_scene_clip(scene, duration, assets_dir_p)
         if audio_clip is not None:
-            visual_clip = visual_clip.set_audio(audio_clip)
-            audio_clips.append(audio_clip)
+            visual_clip = visual_clip.with_audio(audio_clip)
         scene_clips.append(visual_clip)
 
     final = concatenate_videoclips(scene_clips, method="compose")
 
     if music_path:
-        music = AudioFileClip(music_path).volumex(0.15)
+        music = AudioFileClip(music_path).with_volume_scaled(0.15)
         loops_needed = int(final.duration // music.duration) + 1
-        music = concatenate_audioclips_safe(music, loops_needed).subclip(0, final.duration)
+        music = concatenate_audioclips([music] * max(loops_needed, 1)).subclipped(0, final.duration)
         final_audio = CompositeAudioClip([final.audio, music]) if final.audio else music
-        final = final.set_audio(final_audio)
+        final = final.with_audio(final_audio)
 
     out_dir = Path(config.OUTPUT_DIR) / "video"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path_p = Path(out_path) if out_path else out_dir / f"{_slug(script['title'])}.mp4"
+    out_path_p.parent.mkdir(parents=True, exist_ok=True)
 
     final.write_videofile(str(out_path_p), fps=24, codec="libx264", audio_codec="aac")
     print(f"Assembled video: {out_path_p}")
     return out_path_p
-
-
-def concatenate_audioclips_safe(clip, loops_needed: int):
-    from moviepy.editor import concatenate_audioclips
-
-    return concatenate_audioclips([clip] * max(loops_needed, 1))
 
 
 def _slug(title: str) -> str:

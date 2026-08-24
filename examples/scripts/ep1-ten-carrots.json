@@ -1,0 +1,61 @@
+{
+  "title": "Bounce the Counting Bunny - Ep1: Ten Carrots",
+  "character": "Bounce",
+  "topic": "counting 1 to 10",
+  "age_range": "2-5",
+  "total_duration_seconds": 90,
+  "scenes": [
+    {
+      "scene_number": 1,
+      "visual": "Wide shot: sunny meadow, Bounce hopping in from left, waves at camera.",
+      "voiceover": "Hi friends! I'm Bounce! Today let's count my carrots!",
+      "duration_seconds": 5
+    },
+    {
+      "scene_number": 2,
+      "visual": "Bounce points to a carrot patch, one carrot pops up.",
+      "voiceover": "One carrot, orange and small, is that really all?",
+      "duration_seconds": 5
+    },
+    {
+      "scene_number": 3,
+      "visual": "A second carrot pops up next to it, Bounce hops closer.",
+      "voiceover": "Two carrots, side by side, growing with such pride!",
+      "duration_seconds": 5
+    },
+    {
+      "scene_number": 4,
+      "visual": "Carrots 3-5 pop up one at a time, Bounce counts each on-screen with a bouncing number graphic.",
+      "voiceover": "Three, four, five -- hop, hop, hop! Watch these carrots grow and pop!",
+      "duration_seconds": 15
+    },
+    {
+      "scene_number": 5,
+      "visual": "Carrots 6-8 appear, Bounce does a little dance.",
+      "voiceover": "Six, seven, eight -- count with me! Look how many we can see!",
+      "duration_seconds": 15
+    },
+    {
+      "scene_number": 6,
+      "visual": "Carrots 9-10 appear, full row of 10 carrots on screen with big number '10'.",
+      "voiceover": "Nine, then ten -- now let's cheer! Ten yummy carrots, right here!",
+      "duration_seconds": 15
+    },
+    {
+      "scene_number": 7,
+      "visual": "Bounce sits and 'eats' happily, wiggles ears.",
+      "voiceover": "We counted all the way to ten! Let's count again -- who's with me?",
+      "duration_seconds": 15
+    },
+    {
+      "scene_number": 8,
+      "visual": "End card: replay button graphic, Bounce waves.",
+      "voiceover": "Bye friends! See you next time!",
+      "duration_seconds": 15
+    }
+  ],
+  "_safety_report": {
+    "clean": true,
+    "matches": []
+  }
+}

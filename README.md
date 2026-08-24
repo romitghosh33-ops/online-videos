@@ -62,6 +62,12 @@ python main.py export-calendar
 # -> output/Bounce_90_Day_Content_Calendar.xlsx
 ```
 
+## Example
+
+`examples/scripts/ep1-ten-carrots.json` is a fully worked script in the
+exact format `generate-script` produces — see `examples/README.md` to
+generate audio/video from it directly without needing an API key first.
+
 ## IP / compliance notes
 
 - `content_safety.py` flags obvious name/title overlaps with existing kids'
